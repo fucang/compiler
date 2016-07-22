@@ -1,0 +1,344 @@
+/*************************************************************************
+	> File Name: comp.c 
+	> Author: fucang_zxx
+	> Mail: fucang_zxx@163.com 
+	> Created Time: 2016年07月20日 星期三 16时32分15秒
+ ************************************************************************/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <memory.h>
+#include <string.h>
+
+//variable of basic 
+int token;  //current token
+char *src, *old_src; //pointer to source code string
+int poolsize; //default size of text/data/stack
+
+//add for virtual machine
+int line;
+int *text, *old_text, *stack; //text segment, for dump text segment, stack
+char *data; //data segment
+
+//virtual machine registers
+int *pc, *bp, *sp, ax, cycle;
+
+//instructions
+enum 
+{
+	 LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, LC, SI, SC, PUSH,	
+	 OR, XOR, AND, EQ, NE, LT, GT, LE, GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD,
+	 OPEN, READ, CLOS, PRTF, MALC, MSET, MCMP, EXIT,	
+};
+
+   
+void next()
+{
+	token = *src++;
+	return;
+}
+
+void expression(int level)
+{
+	//analysis the expression
+	
+}
+
+void program()
+{
+	next(); //get next token
+//	while(token > 0)
+//	{
+//		printf("token is: %c\n",token);
+//		next();
+//	}
+	
+}
+
+int eval()
+{
+	int op, *tmp;
+	while(1)
+	{
+		op = *pc++; //获取下一个运算符
+
+		//将MOV分解为5个指令
+		if(op == IMM)
+		{
+			//将<num>放入寄存器ax中
+			ax = *pc++;
+		}
+		else if(op == LC)
+		{
+			//load character to ax, address in ax
+			ax = *(char*)ax;
+		}
+		else if(op == LI)
+		{
+			//load integer to ax, address in ax
+			ax = *(int*)ax;
+		}
+		else if(op == SC)
+		{
+			//save character to address, value in ax, address on stack
+			ax = *(char*)*sp++ = ax;
+		}
+		else if(op == SI)
+		{
+			//save integer to address, value in ax, address on stack
+			*(int*)*sp++ = ax;
+		}
+
+		else if(op == PUSH)
+		{
+			//push the value of ax onto the stack
+			//栈往下生长，所以要减
+			*--sp = ax;
+		}
+		else if(op == JMP)
+		{
+			//跳转指令
+			pc = (int*)*pc;
+		}
+		else if(op == JZ)
+		{
+			//jump if ax is zero
+			pc = (ax == 0 ? (int*)*pc : (pc + 1));
+		}
+		else if(op == JNZ)
+		{
+			//jump if ax is not zero
+			pc = (ax != 0 ? (int*)*pc : (pc + 1));
+		}
+
+		//子函数调用
+		else if(op == CALL)
+		{
+			//call subroutine
+			*--sp = (int)(pc + 1); //保存信息
+			pc = (int*)*pc;
+		}
+		//else if(op == RET)
+		//{
+		//  //底下用LEV代替它
+		//  //return from subroutine
+		//   pc = (int*)*sp++;
+		//}
+		else if(op == ENT)
+		{
+			//make new stack frame
+			//保存当前栈指针，同时在栈上保留一定的空间，用以存放局部变量
+			*--sp = (int)bp;
+			bp = sp;
+			sp = sp - *pc;
+			pc++;
+		}
+		else if(op == ADJ)
+		{
+			//在将调用子函数时压入栈中的数据清除，这是因为我们的ADD指令有限
+			//remove arguments from frame
+			//add esp <size>
+			sp = sp + *pc;
+			pc++;
+		}
+		else if(op == LEV)
+		{
+			//restore call frame and pc
+			sp = bp;
+			bp = (int*)*sp++;
+			pc = (int*)*sp++;
+		}
+		else if(op == LEA)
+		{
+			//load address for arguments
+			ax = (int)(bp + *pc++);
+		}
+
+		//运算符指令,第一个参数放在栈顶，第二个参数保存在ax中
+		else if(op == OR)
+		{
+			ax = *sp++ | ax;
+		}
+		else if(op == XOR)
+		{
+			ax = *sp++ ^ ax;
+		}
+		else if(op == AND)
+		{
+			ax = *sp++ & ax;
+		}
+		else if(op == EQ)
+		{
+			ax = (*sp++ == ax);
+		}
+		else if(op == NE)
+		{
+			ax = (*sp++ != ax);
+		}
+		else if(op == LT)
+		{
+			ax = (*sp++ < ax);
+		}
+		else if(op == LE)
+		{
+			ax = (*sp++ <= ax);
+		}
+		else if(op == GT)
+		{
+			ax = (*sp++ > ax);
+		}
+		else if(op == GE)
+		{
+			ax = (*sp++ >= ax);
+		}
+		else if(op == SHL)
+		{
+			ax = (*sp++ << ax);
+		}
+		else if(op == SHR)
+		{
+			ax = (*sp++ >> ax);
+		}
+		else if(op == ADD)
+		{
+			ax = *sp++ + ax;
+		}
+		else if(op == SUB)
+		{
+			ax = *sp++ - ax;
+		}
+		else if(op == MUL)
+		{
+			ax = *sp++ * ax;
+		}
+		else if(op == DIV)
+		{
+			ax = *sp++ / ax;
+		}
+		else if(op == MOD)
+		{
+			ax = *sp++ % ax;
+		}
+		
+		//内置函数的实现
+		//常用的内置函数：exit, open, close, read, printf, malloc, memset, memcmp
+		else if(op == EXIT)
+		{
+			printf("exit(%d)\n", *sp);
+			return *sp;
+		}
+		else if(op == OPEN)
+		{
+			ax = open((char*)sp[1], sp[0]);
+		}
+		else if(op == CLOS)
+		{
+			ax = close(*sp);
+		}
+		else if(op == READ)
+		{
+			ax = read(sp[2], (char*)sp[1], *sp);
+		}
+		else if(op == PRTF)
+		{
+			tmp = sp + pc[1];
+			ax = printf((char*)tmp[-1], tmp[-2], tmp[-3], tmp[-4], tmp[-5], tmp[-6]);
+		}
+		else if(op == MALC)
+		{
+			ax = (int)malloc(*sp);
+		}
+		else if(op == MSET)
+		{
+			ax = (int)memset((char*)sp[2],sp[1],*sp);
+		}
+		else if(op == MCMP)
+		{
+			ax = memcmp((char*)sp[2], (char*)sp[1], *sp);
+		}
+		else
+		{
+			//错误判断
+			printf("unknown instruction: %d\n", op);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int main(int argc, char* argv[])
+{
+	int i, fd;
+	argc--;
+	argv++;
+	poolsize = 256 * 1025; //arbitary size, need read the size of char
+	line = 1;
+
+	if((fd = open(*argv, 0)) < 0)
+	{
+		//open file fail
+		printf("could not open (%s)\n", *argv);
+		return -1;
+	}
+
+	if((src = old_src = malloc(poolsize)) == NULL)
+	{
+		printf("could not malloc (%d) for source area\n", poolsize);
+		return -1;
+	}
+
+	//read the source file
+	if((i = read(fd, src, poolsize - 1)) <= 0)
+	{
+		//ssize_t read(int fd, void* buf, size_t count)
+		printf("read() returned %d\n", i);
+		return -1;
+	}
+
+	src[i] = 0; //add EOF character
+	close(fd);
+
+	//virtual of machine
+	//allocate memory for virtual machine
+	//allocate memory for text
+	if((text = old_text = malloc(poolsize)) == NULL)
+	{
+		printf("could not malloc (%d) for text area\n", poolsize);
+		return -1;
+	}
+	//allocate memory for data
+	if((data = malloc(poolsize)) == NULL)
+	{
+		printf("could not malloc (%d) for data area\n", poolsize);
+		return -1;
+	}
+	//allocate memory for stack
+	if((stack = malloc(poolsize)) == NULL)
+	{
+		printf("could not malloc (%d) for stack area\n", poolsize);
+		return -1;
+	}
+	//初始化所申请的空间
+	memset(text, 0, poolsize);
+    memset(data, 0, poolsize);
+   	memset(stack, 0, poolsize);
+
+	bp = sp = (int*)((int)stack + poolsize);
+	ax = 0;
+
+	//test for virtual:计算10 + 20
+	i = 0;
+	text[i++] = IMM;
+	text[i++] = 10;
+	text[i++] = PUSH;
+	text[i++] = IMM;
+	text[i++] = 20;
+	text[i++] = ADD;
+	text[i++] = PUSH;
+	text[i++] = EXIT;
+	pc = text;
+
+	program();
+	return eval();
+}
